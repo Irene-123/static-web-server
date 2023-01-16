@@ -1,17 +1,28 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-use std::path::PathBuf;
-use std::path::Path;
-use rocket::response::NamedFile;
-
-
-#[macro_use]
-extern crate rocket;
-
-#[get("/<file..>")]
-fn files(file: PathBuf) -> Option<NamedFile> {
-    NamedFile::open(Path::new("static/").join(file)).ok()
-}
+use std::{
+    io::{prelude::*, BufReader},
+    net::{TcpListener, TcpStream}, fs,
+};
 
 fn main() {
-    rocket::ignite().mount("/", routes![files]).launch();
+    let listener= TcpListener::bind("127.0.0.1:7878").unwrap(); 
+    for stream in listener.incoming(){
+        let stream=  stream.unwrap(); 
+        handle_connection(stream); 
+    }
 }
+
+fn handle_connection(mut stream: TcpStream){
+    let buf_reader= BufReader::new(&mut stream); 
+    let http_request: Vec<_>= buf_reader
+        .lines()
+        .map(|result| result.unwrap())
+        .take_while(|line| !line.is_empty())
+        .collect(); 
+
+        let status_line = "HTTP/1.1 200 OK";
+        let contents= fs::read_to_string("static/index.html").unwrap(); 
+        let length= contents.len(); 
+        let response= format!("{status_line}\r\nContent-length: {length}\r\n\r{contents}"); 
+
+        stream.write_all(response.as_bytes()).unwrap();
+    }
